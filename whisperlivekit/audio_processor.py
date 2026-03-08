@@ -1,8 +1,9 @@
 import asyncio
+import inspect
 import logging
 import traceback
 from time import time
-from typing import Any, AsyncGenerator, List, Optional, Union
+from typing import Any, AsyncGenerator, Awaitable, List, Optional, Protocol, Union
 
 import numpy as np
 
@@ -24,6 +25,11 @@ logger.setLevel(logging.DEBUG)
 
 SENTINEL = object() # unique sentinel object for end of stream marker
 MIN_DURATION_REAL_SILENCE = 5
+
+
+class TranscriptCallback(Protocol):
+    def __call__(self, response: FrontData, /) -> Union[None, Awaitable[None]]:
+        ...
 
 async def get_all_from_queue(queue: asyncio.Queue) -> Union[object, Silence, np.ndarray, List[Any]]:
     items: List[Any] = []
@@ -61,6 +67,8 @@ class AudioProcessor:
         """Initialize the audio processor with configuration, models, and state."""
         # Extract per-session language override before passing to TranscriptionEngine
         session_language = kwargs.pop('language', None)
+
+        self.transcript_callback: Optional[TranscriptCallback] = kwargs.pop("transcript_callback", None)
 
         if 'transcription_engine' in kwargs and isinstance(kwargs['transcription_engine'], TranscriptionEngine):
             models = kwargs['transcription_engine']
@@ -136,6 +144,14 @@ class AudioProcessor:
             self.diarization = online_diarization_factory(self.args, models.diarization_model)
         if models.translation_model:
             self.translation = online_translation_factory(self.args, models.translation_model)
+
+    async def _dispatch_transcript_callback(self, response: FrontData) -> None:
+        if self.transcript_callback is None:
+            return
+
+        result = self.transcript_callback(response)
+        if inspect.isawaitable(result):
+            await result
 
     async def _push_silence_event(self) -> None:
         if self.transcription_queue:
@@ -514,6 +530,7 @@ class AudioProcessor:
                 should_push = (response != self.last_response_content)
                 if should_push:
                     self.metrics.n_responses_sent += 1
+                    await self._dispatch_transcript_callback(response)
                     yield response
                     self.last_response_content = response
 
