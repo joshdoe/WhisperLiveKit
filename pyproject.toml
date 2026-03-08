@@ -36,6 +36,7 @@ dependencies = [
 
 [project.optional-dependencies]
 test = ["pytest>=7.0", "pytest-asyncio>=0.21", "datasets>=2.14", "librosa"]
+system-audio = ['PyAudioWPatch>=0.2.12.7; platform_system == "Windows"']
 translation = ["nllw"]
 sentence_tokenizer = ["mosestokenizer", "wtpsplit"]
 mlx-whisper = [
@@ -134,6 +135,7 @@ per-file-ignores = {"whisperlivekit/whisper/*" = ["F401", "F841", "E731", "W"], 
 [tool.setuptools]
 packages = [
     "whisperlivekit",
+    "whisperlivekit.audio_sources",
     "whisperlivekit.diarization",
     "whisperlivekit.simul_whisper",
     "whisperlivekit.simul_whisper.mlx",
